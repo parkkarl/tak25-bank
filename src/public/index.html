@@ -278,7 +278,7 @@ async function makeTransfer() {
     await loadAccounts();
     document.getElementById('destAccount').value = '';
     document.getElementById('txAmount').value = '';
-  } catch (e) { msg('txMsg', e.message || 'Viga', false); }
+  } catch (e) { msg('txMsg', e.errorMessage || e.message || 'Viga', false); }
 }
 
 // History
