@@ -185,8 +185,11 @@ app.post('/api/v1/transfers/receive', async (req, res) => {
 app.get('/api/v1/transfers/:transferId', authenticate, (req, res) => {
   const t = db.prepare('SELECT * FROM transfers WHERE transfer_id = ?').get(req.params.transferId);
   if (!t) return res.status(404).json({ code: 'TRANSFER_NOT_FOUND', message: 'Transfer not found' });
-  if (t.status === 'failed_timeout') {
-    return res.status(423).json({ code: 'TRANSFER_TIMEOUT', message: 'Transfer timed out. Funds refunded.' });
+
+  // Check ownership: user must own source or destination account
+  const userAccounts = db.prepare('SELECT account_number FROM accounts WHERE owner_id = ?').all(req.user.user_id).map(a => a.account_number);
+  if (!userAccounts.includes(t.source_account) && !userAccounts.includes(t.destination_account)) {
+    return res.status(403).json({ code: 'FORBIDDEN', message: 'You do not have access to this transfer' });
   }
 
   const resp = {

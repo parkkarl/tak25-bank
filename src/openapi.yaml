@@ -131,9 +131,10 @@ paths:
       tags:
         - Users
       summary: Get user profile
-      description: Returns user information including their accounts.
+      description: Returns user information including their accounts. Requires authentication — users can only view their own profile.
       operationId: getUser
-      security: []
+      security:
+        - BearerAuth: []
       parameters:
         - name: userId
           in: path
