@@ -105,9 +105,14 @@ Keskkonnamuutujad:
 
 ## Swagger UI
 
-Käivita server ja ava brauseris:
+Lokaalselt:
 ```
 http://localhost:3000/docs/
+```
+
+Live:
+```
+https://tak25-bank.onrender.com/docs/
 ```
 
 ## API endpointid

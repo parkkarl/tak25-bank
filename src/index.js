@@ -16,15 +16,22 @@ app.use(express.json());
 // Swagger UI
 import { parse } from 'yaml';
 const spec = parse(readFileSync(join(__dirname, 'openapi.yaml'), 'utf8'));
+const liveUrl = process.env.RENDER_EXTERNAL_URL || process.env.BANK_ADDRESS;
+if (liveUrl) {
+  spec.servers = [{ url: `${liveUrl}/api/v1`, description: 'Live server' }, ...spec.servers];
+}
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(spec));
 
 app.use('/api/v1', usersRouter);
 app.use('/api/v1', accountsRouter);
 app.use('/api/v1', transfersRouter);
 
+app.get('/health', (req, res) => res.json({ status: 'ok' }));
+
 const PORT = process.env.PORT || 3000;
 const BANK_NAME = process.env.BANK_NAME || 'TAK25 Bank';
-const BANK_ADDRESS = process.env.BANK_ADDRESS || `http://localhost:${PORT}`;
+// Render sets RENDER_EXTERNAL_URL automatically
+const BANK_ADDRESS = process.env.BANK_ADDRESS || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
 
 app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);

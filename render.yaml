@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: tak25-bank
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm run start:monolith
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: BANK_NAME
+        value: TAK25 Bank
+      - key: NODE_ENV
+        value: production
