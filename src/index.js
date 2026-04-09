@@ -18,7 +18,8 @@ import { parse } from 'yaml';
 const spec = parse(readFileSync(join(__dirname, 'openapi.yaml'), 'utf8'));
 const liveUrl = process.env.RENDER_EXTERNAL_URL || process.env.BANK_ADDRESS || null;
 if (liveUrl) {
-  spec.servers = [{ url: `${liveUrl}/api/v1`, description: 'Live server' }, ...spec.servers];
+  const swaggerUrl = liveUrl.endsWith('/api/v1') ? liveUrl : `${liveUrl}/api/v1`;
+  spec.servers = [{ url: swaggerUrl, description: 'Live server' }, ...spec.servers];
 }
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(spec));
 
