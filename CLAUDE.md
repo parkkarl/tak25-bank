@@ -174,3 +174,77 @@ git push                # Push muudatused GitHubi
 # Seejärel deploy serverisse:
 ssh root@89.167.83.242 "cd /opt/tak25-bank && git pull && npm install && systemctl restart tak25-bank"
 ```
+
+## TÄHTIS: Ära kunagi kustuta bank.db!
+
+DB sisaldab ES256 võtmepaari mis on keskpangas registreeritud. Kustutamine = uus võti = keskpanga public key mismatch = pankadevahelised ülekanded ei tööta kuni vana registreering aegub (30 min).
+
+## Ülesande juhend
+
+### Pangaülesanne — Grupp TAK25
+
+**Eesmärk:** Disainida ja implementeerida täielik panga harukontori API, mis suudab registreerida kasutajaid, hallata kontosid, teha pangasiseseid ja pankadevahelisi ülekandeid ning suhelda Keskpangaga.
+
+- **Keskpanga API:** https://test.diarainfra.com/central-bank/
+- **Harukontori OpenAPI spetsifikatsioon:** https://test.diarainfra.com/central-bank/openapi/branch-bank.yaml
+
+### Arhitektuurinõuded
+
+Mikroteenuste arhitektuur:
+- Rakendus jagatud väikesteks, ülesandepõhisteks komponentideks
+- Iga teenus iseseisvalt deployeritav ja skaleeritav
+- Teenused suhtlevad standardiseeritud viisil (REST API)
+- Iga teenus valitseb oma andmete ja loogika üle
+
+### Funktsionaalsed nõuded
+
+1. **Kasutajahaldus** — registreerimine, info küsimine, autentimine API võtmetega
+2. **Kontohaldus** — konto loomine, info küsimine, saldo jälgimine
+3. **Ülekanded** — pangasisesed, pankadevahelised, ajaloo küsimine, oleku jälgimine, laekumiste vastuvõtmine
+4. **Keskpanga integratsioon** — registreerimine, heartbeat (30 min timeout), pankade loend + vahemälu, vahetuskursid, ES256 JWT
+5. **Swagger UI** — kõik endpointid nähtavad ja testitavad, live-keskkonnas kättesaadav
+
+### Tehnilised nõuded
+
+- Sobiv andmebaas tabelite ja struktuuridega, transaktsioonid
+- Kõik endpointid vastavalt openapi/branch-bank.yaml
+- JSON päringud/vastused, korrektsed HTTP staatuskoodid
+- Bearer token autentimine, kasutajaõiguste kontroll
+- Privaat- ja avaliku võtme genereerimine JWT allkirjastamiseks
+- Veakäsitlus sobivate staatuskoodide ja veateadetega
+- Idempotentsus transferId-ga
+
+### Keskpanga endpointid
+
+- `POST /api/v1/banks` — registreerimine
+- `GET /api/v1/banks` — pankade loend (lastSyncedAt vahemälu jaoks)
+- `GET /api/v1/banks/{bankId}` — konkreetse panga andmed
+- `POST /api/v1/banks/{bankId}/heartbeat` — südamelöök
+- `GET /api/v1/exchange-rates` — vahetuskursid (EUR baasvaluuta)
+
+### Hindamiskriteeriumid
+
+- [ ] API täielikkus — kõik endpointid töötavad
+- [ ] Mikroteenuste arhitektuur — sobiv ja efektiivne
+- [ ] Andmebaasi disain — sobiv ja efektiivne
+- [ ] Autentimine ja autoriseerimine — turvaline ja töötab
+- [ ] Ülekannete töötlus — korrektne ja usaldusväärne
+- [ ] Keskpanga integratsioon — suhtleb edukalt
+- [ ] Veakäsitlus — täielik ja informatiivne
+- [ ] Koodikvaliteet — loetav ja võimekas
+- [ ] Dokumentatsioon — arusaadav ja täielik
+- [ ] Swagger UI olemasolu ja toimivus
+- [ ] Testimine — korduvate stsenaariumide katmine
+- [ ] Live URL töötab ja on kättesaadav
+
+### Esitamine
+
+GitHub repo README.md peab sisaldama:
+- Kasutatud tehnoloogiad
+- Mikroteenuste arhitektuuri kirjeldus
+- Andmebaasi skeem
+- Kuidas API-d käivitada
+- Live URL
+- Swagger UI URL
+- Näidispäringud
+- Testide tulemused
