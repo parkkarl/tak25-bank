@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "node start.js",
-    "start:monolith": "node src/index.js"
+    "start:monolith": "node src/index.js",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.0.0",
