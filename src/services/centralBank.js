@@ -28,9 +28,20 @@ function extractJson(text) {
 }
 
 export async function init(name, address) {
-  const { publicKey, privateKey: priv } = await jose.generateKeyPair('ES256');
-  privateKey = priv;
-  publicKeyPem = await jose.exportSPKI(publicKey);
+  // Try to reuse existing keypair from DB (so central bank's public key stays valid after restart)
+  const existingKey = db.prepare("SELECT value FROM bank_config WHERE key = 'privateKey'").get();
+  const existingPub = db.prepare("SELECT value FROM bank_config WHERE key = 'publicKey'").get();
+
+  if (existingKey && existingPub) {
+    privateKey = await jose.importPKCS8(existingKey.value, 'ES256');
+    publicKeyPem = existingPub.value;
+    console.log('Reusing existing keypair from database');
+  } else {
+    const { publicKey: pub, privateKey: priv } = await jose.generateKeyPair('ES256');
+    privateKey = priv;
+    publicKeyPem = await jose.exportSPKI(pub);
+    console.log('Generated new ES256 keypair');
+  }
 
   const res = await fetch(`${CB_URL}/banks`, {
     method: 'POST',
@@ -41,7 +52,7 @@ export async function init(name, address) {
   const text = await res.text();
 
   if (res.status === 409) {
-    // Already registered — find our bankId from bank directory, re-register with new key
+    // Already registered — find our bankId from bank directory
     console.log('Bank address already registered, looking up existing bankId...');
     const listRes = await fetch(`${CB_URL}/banks`);
     if (listRes.ok) {
@@ -50,6 +61,11 @@ export async function init(name, address) {
       if (existing) {
         bankId = existing.bankId;
         bankPrefix = bankId.substring(0, 3);
+        // Check if central bank has our current public key
+        if (existing.publicKey !== publicKeyPem) {
+          console.log('Public key mismatch — waiting for old registration to expire...');
+          console.log('Inter-bank transfers may not work until re-registration completes.');
+        }
         console.log(`Found existing registration: ${bankId}`);
       }
     }
@@ -63,7 +79,7 @@ export async function init(name, address) {
     bankPrefix = bankId.substring(0, 3);
   }
 
-  // Persist for other services
+  // Persist keypair and config
   db.prepare("INSERT OR REPLACE INTO bank_config (key, value) VALUES ('bankId', ?)").run(bankId);
   db.prepare("INSERT OR REPLACE INTO bank_config (key, value) VALUES ('bankPrefix', ?)").run(bankPrefix);
   db.prepare("INSERT OR REPLACE INTO bank_config (key, value) VALUES ('privateKey', ?)").run(await jose.exportPKCS8(privateKey));
