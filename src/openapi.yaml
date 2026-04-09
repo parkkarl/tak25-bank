@@ -776,19 +776,6 @@ paths:
                   value:
                     code: "TRANSFER_NOT_FOUND"
                     message: "Transfer with ID '550e8400-e29b-41d4-a716-446655440000' not found"
-        '423':
-          description: Transfer is locked
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              examples:
-                transferTimeout:
-                  summary: Transfer timed out
-                  value:
-                    code: "TRANSFER_TIMEOUT"
-                    message: "Transfer has timed out and cannot be modified or retried. Status is failed_timeout with refund processed."
-
 components:
   schemas:
     UserRegistrationRequest:
