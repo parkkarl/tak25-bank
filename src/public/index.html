@@ -266,7 +266,7 @@ async function makeTransfer() {
   if (!/^\d+\.\d{2}$/.test(amount)) return msg('txMsg', 'Summa formaat: 100.00', false);
 
   try {
-    const transferId = crypto.randomUUID();
+    const transferId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16); });
     const data = await api('POST', '/transfers', { transferId, sourceAccount, destinationAccount, amount });
     if (data.status === 'completed') {
       msg('txMsg', `&Uuml;lekanne &otilde;nnestus!${data.convertedAmount ? ` (${data.convertedAmount} ${data.exchangeRate})` : ''}`, true);
