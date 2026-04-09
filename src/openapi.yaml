@@ -172,6 +172,8 @@ paths:
                           type: string
                         created_at:
                           type: string
+        '403':
+          description: Forbidden
         '404':
           description: User not found
 
@@ -213,6 +215,8 @@ paths:
                           type: string
         '401':
           description: Unauthorized
+        '403':
+          description: Forbidden
     post:
       tags:
         - Accounts
@@ -309,6 +313,12 @@ paths:
                   value:
                     code: "UNAUTHORIZED"
                     message: "Authentication is required to create an account"
+        '403':
+          description: Forbidden - cannot create account for another user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           description: User not found
           content:
@@ -437,6 +447,8 @@ paths:
                       $ref: '#/components/schemas/TransferResponse'
         '401':
           description: Unauthorized
+        '403':
+          description: Forbidden
 
   /transfers:
     post:
@@ -543,6 +555,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - not your account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                forbidden:
+                  summary: Not account owner
+                  value:
+                    code: "FORBIDDEN"
+                    message: "Not your account"
         '404':
           description: Account not found
           content:
@@ -728,6 +752,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - not your transfer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                forbidden:
+                  summary: Not transfer owner
+                  value:
+                    code: "FORBIDDEN"
+                    message: "You do not have access to this transfer"
         '404':
           description: Transfer not found
           content:
