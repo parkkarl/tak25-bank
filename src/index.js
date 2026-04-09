@@ -22,6 +22,9 @@ if (liveUrl) {
 }
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(spec));
 
+// Static UI
+app.use(express.static(join(__dirname, 'public')));
+
 app.use('/api/v1', usersRouter);
 app.use('/api/v1', accountsRouter);
 app.use('/api/v1', transfersRouter);

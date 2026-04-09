@@ -4,6 +4,16 @@ import db from '../db.js';
 
 const router = Router();
 
+// Get current user by API key
+router.get('/me', (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Authentication is required' });
+  const user = db.prepare('SELECT user_id, full_name, email, created_at FROM users WHERE api_key = ?').get(auth.slice(7));
+  if (!user) return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Invalid token' });
+  const accounts = db.prepare('SELECT account_number, currency, balance, created_at FROM accounts WHERE owner_id = ?').all(user.user_id);
+  res.json({ userId: user.user_id, fullName: user.full_name, email: user.email, createdAt: user.created_at, accounts });
+});
+
 router.post('/users', (req, res) => {
   const { fullName, email } = req.body;
   if (!fullName || fullName.length < 2) {
