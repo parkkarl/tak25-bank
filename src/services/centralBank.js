@@ -39,14 +39,29 @@ export async function init(name, address) {
   });
 
   const text = await res.text();
-  if (!res.ok && !text.includes('bankId')) {
+
+  if (res.status === 409) {
+    // Already registered — find our bankId from bank directory, re-register with new key
+    console.log('Bank address already registered, looking up existing bankId...');
+    const listRes = await fetch(`${CB_URL}/banks`);
+    if (listRes.ok) {
+      const listData = await listRes.json();
+      const existing = (listData.banks || []).find(b => b.address === address);
+      if (existing) {
+        bankId = existing.bankId;
+        bankPrefix = bankId.substring(0, 3);
+        console.log(`Found existing registration: ${bankId}`);
+      }
+    }
+    if (!bankId) throw new Error('Bank address registered but could not find bankId');
+  } else if (!res.ok) {
     const err = extractJson(text);
     throw new Error(`Registration failed: ${err.message}`);
+  } else {
+    const data = extractJson(text);
+    bankId = data.bankId;
+    bankPrefix = bankId.substring(0, 3);
   }
-
-  const data = extractJson(text);
-  bankId = data.bankId;
-  bankPrefix = bankId.substring(0, 3);
 
   // Persist for other services
   db.prepare("INSERT OR REPLACE INTO bank_config (key, value) VALUES ('bankId', ?)").run(bankId);
