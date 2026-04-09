@@ -100,6 +100,7 @@ export async function signJwt(payload) {
   return new jose.SignJWT(payload)
     .setProtectedHeader({ alg: 'ES256', typ: 'JWT' })
     .setIssuedAt()
+    .setExpirationTime('5m')
     .sign(key);
 }
 

@@ -26,6 +26,9 @@ app.post('/api/v1/transfers', authenticate, async (req, res) => {
   if (!transferId || !sourceAccount || !destinationAccount || !amount) {
     return res.status(400).json({ code: 'INVALID_REQUEST', message: 'Missing required fields' });
   }
+  if (typeof amount !== 'string' || !/^\d+\.\d{2}$/.test(amount) || parseFloat(amount) <= 0 || !isFinite(parseFloat(amount))) {
+    return res.status(400).json({ code: 'INVALID_REQUEST', message: 'Amount must be a positive number with 2 decimal places (e.g. "100.00")' });
+  }
 
   const existing = db.prepare('SELECT * FROM transfers WHERE transfer_id = ?').get(transferId);
   if (existing) {
@@ -35,7 +38,7 @@ app.post('/api/v1/transfers', authenticate, async (req, res) => {
 
   const src = db.prepare('SELECT * FROM accounts WHERE account_number = ?').get(sourceAccount);
   if (!src) return res.status(404).json({ code: 'ACCOUNT_NOT_FOUND', message: 'Source account not found' });
-  if (src.owner_id !== req.user.user_id) return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Not your account' });
+  if (src.owner_id !== req.user.user_id) return res.status(403).json({ code: 'FORBIDDEN', message: 'Not your account' });
   if (parseFloat(src.balance) < parseFloat(amount)) {
     return res.status(422).json({ code: 'INSUFFICIENT_FUNDS', message: 'Insufficient funds in source account' });
   }
@@ -98,7 +101,10 @@ app.post('/api/v1/transfers', authenticate, async (req, res) => {
         rateCapturedAt = rates.timestamp;
       }
     }
-  } catch (e) { console.error('Rate/lookup error:', e.message); }
+  } catch (e) {
+    console.error('Rate/lookup error:', e.message);
+    return res.status(503).json({ code: 'EXCHANGE_RATE_UNAVAILABLE', message: 'Cannot fetch exchange rates for cross-bank transfer' });
+  }
 
   db.prepare('UPDATE accounts SET balance = ? WHERE account_number = ?')
     .run((parseFloat(src.balance) - parseFloat(amount)).toFixed(2), sourceAccount);
@@ -132,7 +138,7 @@ app.post('/api/v1/transfers', authenticate, async (req, res) => {
     db.prepare('UPDATE accounts SET balance = ? WHERE account_number = ?').run(src.balance, sourceAccount);
     db.prepare(`INSERT INTO transfers (transfer_id,source_account,destination_account,amount,status,error_message,created_at) VALUES (?,?,?,?,'failed',?,?)`)
       .run(transferId, sourceAccount, destinationAccount, amount, errData.message, ts);
-    return res.status(201).json({ transferId, status: 'failed', sourceAccount, destinationAccount, amount, timestamp: ts, errorMessage: errData.message });
+    return res.status(422).json({ transferId, status: 'failed', sourceAccount, destinationAccount, amount, timestamp: ts, errorMessage: errData.message });
   } catch (e) {
     const pendingSince = ts;
     const nextRetryAt = new Date(Date.now() + 60000).toISOString();
@@ -160,12 +166,13 @@ app.post('/api/v1/transfers/receive', async (req, res) => {
     const existing = db.prepare('SELECT 1 FROM transfers WHERE transfer_id = ?').get(verified.transferId);
     if (existing) return res.status(409).json({ code: 'DUPLICATE_TRANSFER', message: 'Transfer already processed' });
 
-    const newBalance = (parseFloat(dst.balance) + parseFloat(verified.amount)).toFixed(2);
-    db.prepare('UPDATE accounts SET balance = ? WHERE account_number = ?').run(newBalance, verified.destinationAccount);
-
     const ts = new Date().toISOString();
-    db.prepare(`INSERT INTO transfers (transfer_id,source_account,destination_account,amount,status,created_at) VALUES (?,?,?,?,'completed',?)`)
-      .run(verified.transferId, verified.sourceAccount, verified.destinationAccount, verified.amount, ts);
+    db.transaction(() => {
+      const newBalance = (parseFloat(dst.balance) + parseFloat(verified.amount)).toFixed(2);
+      db.prepare('UPDATE accounts SET balance = ? WHERE account_number = ?').run(newBalance, verified.destinationAccount);
+      db.prepare(`INSERT INTO transfers (transfer_id,source_account,destination_account,amount,status,created_at) VALUES (?,?,?,?,'completed',?)`)
+        .run(verified.transferId, verified.sourceAccount, verified.destinationAccount, verified.amount, ts);
+    })();
 
     res.json({ transferId: verified.transferId, status: 'completed', destinationAccount: verified.destinationAccount, amount: verified.amount, timestamp: ts });
   } catch (e) {
@@ -200,7 +207,7 @@ app.get('/api/v1/transfers/:transferId', authenticate, (req, res) => {
 // Transfer history for user
 app.get('/api/v1/users/:userId/transfers', authenticate, (req, res) => {
   if (req.user.user_id !== req.params.userId) {
-    return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Not authorized' });
+    return res.status(403).json({ code: 'FORBIDDEN', message: 'Not authorized' });
   }
   const userAccounts = db.prepare('SELECT account_number FROM accounts WHERE owner_id = ?').all(req.params.userId).map(a => a.account_number);
   if (!userAccounts.length) return res.json({ transfers: [] });
@@ -220,8 +227,11 @@ app.get('/api/v1/users/:userId/transfers', authenticate, (req, res) => {
   });
 });
 
+app.get('/health', (req, res) => res.json({ status: 'ok', service: 'transfer-service' }));
+
 // Retry worker
-setInterval(async () => {
+function startRetryWorker() {
+  setInterval(async () => {
   const pending = db.prepare(`SELECT * FROM transfers WHERE status = 'pending' AND next_retry_at <= ?`).all(new Date().toISOString());
   for (const t of pending) {
     if (Date.now() - new Date(t.pending_since).getTime() > 4 * 60 * 60 * 1000) {
@@ -250,7 +260,11 @@ setInterval(async () => {
       db.prepare('UPDATE transfers SET retry_count = ?, next_retry_at = ? WHERE transfer_id = ?').run(retryCount, new Date(Date.now() + delay).toISOString(), t.transfer_id);
     }
   }
-}, 30000);
+  }, 30000);
+}
 
 const PORT = process.env.TRANSFER_SERVICE_PORT || 3003;
-app.listen(PORT, () => console.log(`Transfer service on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Transfer service on port ${PORT}`);
+  startRetryWorker();
+});

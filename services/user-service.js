@@ -30,7 +30,18 @@ app.post('/api/v1/users', (req, res) => {
 });
 
 app.get('/api/v1/users/:userId', (req, res) => {
-  const user = db.prepare('SELECT * FROM users WHERE user_id = ?').get(req.params.userId);
+  // Authenticate
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith('Bearer ')) {
+    return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Authentication is required' });
+  }
+  const authUser = db.prepare('SELECT user_id FROM users WHERE api_key = ?').get(auth.slice(7));
+  if (!authUser) return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Invalid token' });
+  if (authUser.user_id !== req.params.userId) {
+    return res.status(403).json({ code: 'FORBIDDEN', message: 'You can only view your own profile' });
+  }
+
+  const user = db.prepare('SELECT user_id, full_name, email, created_at FROM users WHERE user_id = ?').get(req.params.userId);
   if (!user) return res.status(404).json({ code: 'USER_NOT_FOUND', message: 'User not found' });
 
   const accounts = db.prepare('SELECT account_number, currency, balance, created_at FROM accounts WHERE owner_id = ?').all(user.user_id);
@@ -43,10 +54,12 @@ app.get('/api/v1/users/:userId', (req, res) => {
 app.get('/internal/auth', (req, res) => {
   const auth = req.headers.authorization;
   if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Authentication is required' });
-  const user = db.prepare('SELECT * FROM users WHERE api_key = ?').get(auth.slice(7));
+  const user = db.prepare('SELECT user_id, full_name, email, created_at FROM users WHERE api_key = ?').get(auth.slice(7));
   if (!user) return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Invalid token' });
   res.json(user);
 });
+
+app.get('/health', (req, res) => res.json({ status: 'ok', service: 'user-service' }));
 
 const PORT = process.env.USER_SERVICE_PORT || 3001;
 app.listen(PORT, () => console.log(`User service on port ${PORT}`));

@@ -16,6 +16,9 @@ router.post('/transfers', authenticate, async (req, res) => {
   if (!transferId || !sourceAccount || !destinationAccount || !amount) {
     return res.status(400).json({ code: 'INVALID_REQUEST', message: 'Missing required fields' });
   }
+  if (typeof amount !== 'string' || !/^\d+\.\d{2}$/.test(amount) || parseFloat(amount) <= 0 || !isFinite(parseFloat(amount))) {
+    return res.status(400).json({ code: 'INVALID_REQUEST', message: 'Amount must be a positive number with 2 decimal places (e.g. "100.00")' });
+  }
 
   const existing = db.prepare('SELECT * FROM transfers WHERE transfer_id = ?').get(transferId);
   if (existing) {
@@ -25,7 +28,7 @@ router.post('/transfers', authenticate, async (req, res) => {
 
   const src = db.prepare('SELECT * FROM accounts WHERE account_number = ?').get(sourceAccount);
   if (!src) return res.status(404).json({ code: 'ACCOUNT_NOT_FOUND', message: 'Source account not found' });
-  if (src.owner_id !== req.user.user_id) return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Not your account' });
+  if (src.owner_id !== req.user.user_id) return res.status(403).json({ code: 'FORBIDDEN', message: 'Not your account' });
   if (parseFloat(src.balance) < parseFloat(amount)) {
     return res.status(422).json({ code: 'INSUFFICIENT_FUNDS', message: 'Insufficient funds in source account' });
   }
@@ -91,7 +94,10 @@ router.post('/transfers', authenticate, async (req, res) => {
         rateCapturedAt = rates.timestamp;
       }
     }
-  } catch (e) { console.error('Rate/lookup error:', e.message); }
+  } catch (e) {
+    console.error('Rate/lookup error:', e.message);
+    return res.status(503).json({ code: 'EXCHANGE_RATE_UNAVAILABLE', message: 'Cannot fetch exchange rates for cross-bank transfer' });
+  }
 
   // Debit source
   db.prepare('UPDATE accounts SET balance = ? WHERE account_number = ?')
@@ -129,7 +135,7 @@ router.post('/transfers', authenticate, async (req, res) => {
       .run(src.balance, sourceAccount);
     db.prepare(`INSERT INTO transfers (transfer_id,source_account,destination_account,amount,status,error_message,created_at) VALUES (?,?,?,?,'failed',?,?)`)
       .run(transferId, sourceAccount, destinationAccount, amount, errData.message, ts);
-    return res.status(201).json({ transferId, status: 'failed', sourceAccount, destinationAccount, amount, timestamp: ts, errorMessage: errData.message });
+    return res.status(422).json({ transferId, status: 'failed', sourceAccount, destinationAccount, amount, timestamp: ts, errorMessage: errData.message });
 
   } catch (e) {
     // Destination unavailable — pending with retry
@@ -165,13 +171,14 @@ router.post('/transfers/receive', async (req, res) => {
     const existing = db.prepare('SELECT 1 FROM transfers WHERE transfer_id = ?').get(verified.transferId);
     if (existing) return res.status(409).json({ code: 'DUPLICATE_TRANSFER', message: 'Transfer already processed' });
 
-    // Credit account
-    const newBalance = (parseFloat(dst.balance) + parseFloat(verified.amount)).toFixed(2);
-    db.prepare('UPDATE accounts SET balance = ? WHERE account_number = ?').run(newBalance, verified.destinationAccount);
-
+    // Credit account + record in transaction
     const ts = new Date().toISOString();
-    db.prepare(`INSERT INTO transfers (transfer_id,source_account,destination_account,amount,status,created_at) VALUES (?,?,?,?,'completed',?)`)
-      .run(verified.transferId, verified.sourceAccount, verified.destinationAccount, verified.amount, ts);
+    db.transaction(() => {
+      const newBalance = (parseFloat(dst.balance) + parseFloat(verified.amount)).toFixed(2);
+      db.prepare('UPDATE accounts SET balance = ? WHERE account_number = ?').run(newBalance, verified.destinationAccount);
+      db.prepare(`INSERT INTO transfers (transfer_id,source_account,destination_account,amount,status,created_at) VALUES (?,?,?,?,'completed',?)`)
+        .run(verified.transferId, verified.sourceAccount, verified.destinationAccount, verified.amount, ts);
+    })();
 
     res.json({ transferId: verified.transferId, status: 'completed', destinationAccount: verified.destinationAccount, amount: verified.amount, timestamp: ts });
   } catch (e) {
@@ -206,7 +213,7 @@ router.get('/transfers/:transferId', authenticate, (req, res) => {
 // Transfer history for user
 router.get('/users/:userId/transfers', authenticate, (req, res) => {
   if (req.user.user_id !== req.params.userId) {
-    return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Not authorized' });
+    return res.status(403).json({ code: 'FORBIDDEN', message: 'Not authorized' });
   }
   const userAccounts = db.prepare('SELECT account_number FROM accounts WHERE owner_id = ?').all(req.params.userId).map(a => a.account_number);
   if (!userAccounts.length) return res.json({ transfers: [] });

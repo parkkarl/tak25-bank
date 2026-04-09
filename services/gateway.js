@@ -60,9 +60,9 @@ app.get('/health', async (req, res) => {
     catch { return { name, status: 'down' }; }
   };
   const services = await Promise.all([
-    check('user-service', `${USER_SERVICE}/api/v1/accounts/healthcheck`),
-    check('account-service', `${ACCOUNT_SERVICE}/api/v1/accounts/healthcheck`),
-    check('transfer-service', `${TRANSFER_SERVICE}/api/v1/transfers/healthcheck`),
+    check('user-service', `${USER_SERVICE}/health`),
+    check('account-service', `${ACCOUNT_SERVICE}/health`),
+    check('transfer-service', `${TRANSFER_SERVICE}/health`),
   ]);
   res.json({ gateway: 'up', services });
 });

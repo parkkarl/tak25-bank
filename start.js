@@ -11,31 +11,36 @@ const services = [
   { name: 'API Gateway', file: 'services/gateway.js' },
 ];
 
-const children = [];
+const MAX_RESTARTS = 5;
+const children = new Array(services.length).fill(null);
+const restartCounts = new Array(services.length).fill(0);
 
-for (const svc of services) {
+function startService(index) {
+  const svc = services[index];
   const child = fork(join(__dirname, svc.file), { stdio: ['pipe', 'inherit', 'inherit', 'ipc'] });
   child.on('exit', (code) => {
     console.error(`${svc.name} exited with code ${code}`);
-    // Restart on crash
-    if (code !== 0) {
-      console.log(`Restarting ${svc.name}...`);
-      setTimeout(() => {
-        const restarted = fork(join(__dirname, svc.file), { stdio: ['pipe', 'inherit', 'inherit', 'ipc'] });
-        children.push(restarted);
-      }, 1000);
+    children[index] = null;
+    if (code !== 0 && restartCounts[index] < MAX_RESTARTS) {
+      restartCounts[index]++;
+      console.log(`Restarting ${svc.name} (${restartCounts[index]}/${MAX_RESTARTS})...`);
+      setTimeout(() => startService(index), 1000);
+    } else if (restartCounts[index] >= MAX_RESTARTS) {
+      console.error(`${svc.name} exceeded max restarts (${MAX_RESTARTS}). Giving up.`);
     }
   });
-  children.push(child);
+  children[index] = child;
 }
 
-process.on('SIGINT', () => {
-  children.forEach(c => c.kill());
+for (let i = 0; i < services.length; i++) {
+  startService(i);
+}
+
+function shutdown() {
+  children.forEach(c => { if (c) c.kill(); });
   process.exit(0);
-});
-process.on('SIGTERM', () => {
-  children.forEach(c => c.kill());
-  process.exit(0);
-});
+}
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
 console.log('All services starting...');

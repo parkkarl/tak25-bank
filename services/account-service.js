@@ -28,7 +28,7 @@ app.post('/api/v1/users/:userId/accounts', authenticate, (req, res) => {
   const { currency } = req.body;
 
   if (req.user.user_id !== userId) {
-    return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Cannot create account for another user' });
+    return res.status(403).json({ code: 'FORBIDDEN', message: 'Cannot create account for another user' });
   }
   if (!db.prepare('SELECT 1 FROM users WHERE user_id = ?').get(userId)) {
     return res.status(404).json({ code: 'USER_NOT_FOUND', message: `User with ID '${userId}' not found` });
@@ -70,11 +70,13 @@ app.get('/api/v1/accounts/:accountNumber', (req, res) => {
 // List user accounts with balances
 app.get('/api/v1/users/:userId/accounts', authenticate, (req, res) => {
   if (req.user.user_id !== req.params.userId) {
-    return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Not your account' });
+    return res.status(403).json({ code: 'FORBIDDEN', message: 'Not your account' });
   }
   const accounts = db.prepare('SELECT account_number, currency, balance, created_at FROM accounts WHERE owner_id = ?').all(req.params.userId);
   res.json({ accounts });
 });
+
+app.get('/health', (req, res) => res.json({ status: 'ok', service: 'account-service' }));
 
 const PORT = process.env.ACCOUNT_SERVICE_PORT || 3002;
 app.listen(PORT, () => console.log(`Account service on port ${PORT}`));
