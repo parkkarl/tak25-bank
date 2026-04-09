@@ -30,6 +30,7 @@ app.use('/api/v1', accountsRouter);
 app.use('/api/v1', transfersRouter);
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
+app.get('/api/v1/health', (req, res) => res.json({ status: 'ok' }));
 
 app.post('/api/v1/sync', async (req, res) => {
   await syncBanks();
