@@ -84,8 +84,8 @@ SQLite (`bank.db`), 4 tabelit:
 
 ### Keskpanga info
 
-- **Bank ID:** TAK001
-- **Prefiks:** TAK (kontonumbrid algavad TAK-ga)
+- **Bank ID:** SLQ001
+- **Prefiks:** SLQ (kontonumbrid algavad SLQ-ga)
 - **Heartbeat:** iga 25 min automaatselt
 
 ### Deploy
@@ -127,7 +127,7 @@ Restart=always
 RestartSec=5
 Environment=PORT=3000
 Environment=BANK_NAME=TAK25 Bank
-Environment=BANK_ADDRESS=http://89.167.83.242:3000
+Environment=BANK_ADDRESS=http://89.167.83.242:3000/api/v1
 Environment=NODE_ENV=production
 
 [Install]
@@ -143,7 +143,7 @@ Pärast muutmist: `ssh root@89.167.83.242 "systemctl daemon-reload && systemctl 
 curl -s http://89.167.83.242:3000/health
 
 # Keskpangas registreeritud:
-curl -s https://test.diarainfra.com/central-bank/api/v1/banks | jq '.banks[] | select(.bankId == "TAK001")'
+curl -s https://test.diarainfra.com/central-bank/api/v1/banks | jq '.banks[] | select(.bankId == "SLQ001")'
 
 # Logid OK:
 ssh root@89.167.83.242 "journalctl -u tak25-bank --no-pager -n 5"
