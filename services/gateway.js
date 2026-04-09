@@ -33,8 +33,10 @@ async function proxy(req, res, target) {
     const url = `${target}${req.originalUrl}`;
     const opts = {
       method: req.method,
-      headers: { 'content-type': 'application/json' },
+      headers: {},
     };
+    if (req.headers['content-type']) opts.headers['content-type'] = req.headers['content-type'];
+    else opts.headers['content-type'] = 'application/json';
     if (req.headers.authorization) opts.headers.authorization = req.headers.authorization;
     if (!['GET', 'HEAD'].includes(req.method)) opts.body = JSON.stringify(req.body);
 
