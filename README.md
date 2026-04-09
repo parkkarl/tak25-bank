@@ -110,9 +110,9 @@ Lokaalselt:
 http://localhost:3000/docs/
 ```
 
-Live:
+Live (Hetzner):
 ```
-https://tak25-bank.onrender.com/docs/
+http://89.167.83.242:3000/docs/
 ```
 
 ## API endpointid

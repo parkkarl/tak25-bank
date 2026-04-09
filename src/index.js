@@ -16,7 +16,7 @@ app.use(express.json());
 // Swagger UI
 import { parse } from 'yaml';
 const spec = parse(readFileSync(join(__dirname, 'openapi.yaml'), 'utf8'));
-const liveUrl = process.env.RENDER_EXTERNAL_URL || process.env.BANK_ADDRESS;
+const liveUrl = process.env.RENDER_EXTERNAL_URL || process.env.BANK_ADDRESS || null;
 if (liveUrl) {
   spec.servers = [{ url: `${liveUrl}/api/v1`, description: 'Live server' }, ...spec.servers];
 }
