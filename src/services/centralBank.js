@@ -83,7 +83,7 @@ export async function init(name, address) {
     } catch (e) { console.error('Heartbeat error:', e.message); }
   }, 25 * 60 * 1000);
 
-  return data;
+  return { bankId, bankPrefix };
 }
 
 async function syncBanks() {
