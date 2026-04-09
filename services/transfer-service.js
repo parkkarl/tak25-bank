@@ -54,7 +54,9 @@ app.post('/api/v1/transfers', authenticate, async (req, res) => {
 
 app.post('/api/v1/transfers/receive', async (req, res) => {
   try {
-    const result = await receiveTransfer(req.body.jwt);
+    console.log('Receive body:', JSON.stringify(req.body));
+    const token = req.body.jwt || req.body.token || (typeof req.body === 'string' ? req.body : null);
+    const result = await receiveTransfer(token);
     if (result.error) return res.status(result.error.status).json({ code: result.error.code, message: result.error.message });
     res.json(result.data);
   } catch (e) {
