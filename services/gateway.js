@@ -15,8 +15,16 @@ const TRANSFER_SERVICE = process.env.TRANSFER_SERVICE_URL || 'http://localhost:3
 const app = express();
 app.use(express.json());
 
+// Static UI
+app.use(express.static(join(__dirname, '..', 'src', 'public')));
+
 // Swagger UI
 const spec = parse(readFileSync(join(__dirname, '..', 'src', 'openapi.yaml'), 'utf8'));
+const liveUrl = process.env.BANK_ADDRESS || null;
+if (liveUrl) {
+  const swaggerUrl = liveUrl.endsWith('/api/v1') ? liveUrl : `${liveUrl}/api/v1`;
+  spec.servers = [{ url: swaggerUrl, description: 'Live server' }, ...spec.servers];
+}
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(spec));
 
 // Proxy helper
@@ -53,7 +61,8 @@ app.post('/api/v1/transfers/receive', (req, res) => proxy(req, res, TRANSFER_SER
 app.get('/api/v1/transfers/:transferId', (req, res) => proxy(req, res, TRANSFER_SERVICE));
 app.get('/api/v1/users/:userId/transfers', (req, res) => proxy(req, res, TRANSFER_SERVICE));
 
-// Health check
+// Health check (both paths for central bank compatibility)
+app.get('/api/v1/health', (req, res) => res.json({ status: 'ok' }));
 app.get('/health', async (req, res) => {
   const check = async (name, url) => {
     try { const r = await fetch(url, { signal: AbortSignal.timeout(2000) }); return { name, status: r.ok ? 'up' : 'down' }; }
