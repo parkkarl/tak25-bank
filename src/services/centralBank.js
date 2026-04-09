@@ -113,14 +113,47 @@ export async function syncBanks() {
     if (res.ok) {
       const data = await res.json();
       banksCache = data.banks || [];
+      db.prepare("INSERT OR REPLACE INTO bank_config (key, value) VALUES ('banksCache', ?)").run(JSON.stringify(banksCache));
     }
-  } catch (e) { console.error('Sync error:', e.message); }
+  } catch (e) {
+    console.error('Sync error:', e.message);
+    // Fallback to DB cache
+    if (!banksCache.length) {
+      const row = db.prepare("SELECT value FROM bank_config WHERE key = 'banksCache'").get();
+      if (row) {
+        banksCache = JSON.parse(row.value);
+        console.log('Using DB cached bank directory');
+      }
+    }
+  }
 }
 
+let ratesCache = null;
+
 export async function getExchangeRates() {
-  const res = await fetch(`${CB_URL}/exchange-rates`);
-  if (!res.ok) throw new Error('Failed to fetch exchange rates');
-  return res.json();
+  try {
+    const res = await fetch(`${CB_URL}/exchange-rates`);
+    if (res.ok) {
+      ratesCache = await res.json();
+      // Persist to DB
+      db.prepare("INSERT OR REPLACE INTO bank_config (key, value) VALUES ('exchangeRates', ?)").run(JSON.stringify(ratesCache));
+      return ratesCache;
+    }
+  } catch (e) {
+    console.error('Exchange rate fetch failed:', e.message);
+  }
+  // Fallback to cache
+  if (ratesCache) {
+    console.log('Using in-memory cached exchange rates');
+    return ratesCache;
+  }
+  const row = db.prepare("SELECT value FROM bank_config WHERE key = 'exchangeRates'").get();
+  if (row) {
+    ratesCache = JSON.parse(row.value);
+    console.log('Using DB cached exchange rates');
+    return ratesCache;
+  }
+  throw new Error('No exchange rates available (central bank down, no cache)');
 }
 
 export function findBankByPrefix(prefix) {
