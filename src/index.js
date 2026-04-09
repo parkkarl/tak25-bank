@@ -3,7 +3,7 @@ import swaggerUi from 'swagger-ui-express';
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { init } from './services/centralBank.js';
+import { init, syncBanks, getBanksCache, getBankId, getBankPrefix } from './services/centralBank.js';
 import usersRouter from './routes/users.js';
 import accountsRouter from './routes/accounts.js';
 import transfersRouter, { startRetryWorker } from './routes/transfers.js';
@@ -30,6 +30,12 @@ app.use('/api/v1', accountsRouter);
 app.use('/api/v1', transfersRouter);
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
+
+app.post('/api/v1/sync', async (req, res) => {
+  await syncBanks();
+  const banks = getBanksCache();
+  res.json({ synced: banks.length, bankId: getBankId(), bankPrefix: getBankPrefix(), banks: banks.map(b => ({ bankId: b.bankId, name: b.name, status: b.status })) });
+});
 
 const PORT = process.env.PORT || 3000;
 const BANK_NAME = process.env.BANK_NAME || 'TAK25 Bank';

@@ -102,7 +102,7 @@ export async function init(name, address) {
   return { bankId, bankPrefix };
 }
 
-async function syncBanks() {
+export async function syncBanks() {
   try {
     const res = await fetch(`${CB_URL}/banks`);
     if (res.ok) {
