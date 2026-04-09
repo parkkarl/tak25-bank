@@ -1,0 +1,110 @@
+import * as jose from 'jose';
+import db from '../db.js';
+
+const CB_URL = process.env.CENTRAL_BANK_URL || 'https://test.diarainfra.com/central-bank/api/v1';
+
+let bankId = null;
+let bankPrefix = null;
+let privateKey = null;
+let publicKeyPem = null;
+let banksCache = [];
+
+export function getBankPrefix() {
+  if (bankPrefix) return bankPrefix;
+  const row = db.prepare("SELECT value FROM bank_config WHERE key = 'bankPrefix'").get();
+  return row ? row.value : 'BNK';
+}
+export function getBankId() {
+  if (bankId) return bankId;
+  const row = db.prepare("SELECT value FROM bank_config WHERE key = 'bankId'").get();
+  return row ? row.value : null;
+}
+export const getBanksCache = () => banksCache;
+
+// Central bank returns PHP warnings before JSON — strip them
+function extractJson(text) {
+  const idx = text.indexOf('{');
+  return idx >= 0 ? JSON.parse(text.substring(idx)) : JSON.parse(text);
+}
+
+export async function init(name, address) {
+  const { publicKey, privateKey: priv } = await jose.generateKeyPair('ES256');
+  privateKey = priv;
+  publicKeyPem = await jose.exportSPKI(publicKey);
+
+  const res = await fetch(`${CB_URL}/banks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, address, publicKey: publicKeyPem })
+  });
+
+  const text = await res.text();
+  if (!res.ok && !text.includes('bankId')) {
+    const err = extractJson(text);
+    throw new Error(`Registration failed: ${err.message}`);
+  }
+
+  const data = extractJson(text);
+  bankId = data.bankId;
+  bankPrefix = bankId.substring(0, 3);
+
+  // Persist for other services
+  db.prepare("INSERT OR REPLACE INTO bank_config (key, value) VALUES ('bankId', ?)").run(bankId);
+  db.prepare("INSERT OR REPLACE INTO bank_config (key, value) VALUES ('bankPrefix', ?)").run(bankPrefix);
+  db.prepare("INSERT OR REPLACE INTO bank_config (key, value) VALUES ('privateKey', ?)").run(await jose.exportPKCS8(privateKey));
+  db.prepare("INSERT OR REPLACE INTO bank_config (key, value) VALUES ('publicKey', ?)").run(publicKeyPem);
+
+  console.log(`Registered as ${bankId} (prefix: ${bankPrefix})`);
+
+  await syncBanks();
+  setInterval(async () => {
+    try {
+      await fetch(`${CB_URL}/banks/${bankId}/heartbeat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timestamp: new Date().toISOString() })
+      });
+      await syncBanks();
+    } catch (e) { console.error('Heartbeat error:', e.message); }
+  }, 25 * 60 * 1000);
+
+  return data;
+}
+
+async function syncBanks() {
+  try {
+    const res = await fetch(`${CB_URL}/banks`);
+    if (res.ok) {
+      const data = await res.json();
+      banksCache = data.banks || [];
+    }
+  } catch (e) { console.error('Sync error:', e.message); }
+}
+
+export async function getExchangeRates() {
+  const res = await fetch(`${CB_URL}/exchange-rates`);
+  if (!res.ok) throw new Error('Failed to fetch exchange rates');
+  return res.json();
+}
+
+export function findBankByPrefix(prefix) {
+  return banksCache.find(b => b.bankId.startsWith(prefix));
+}
+
+export async function signJwt(payload) {
+  let key = privateKey;
+  if (!key) {
+    const row = db.prepare("SELECT value FROM bank_config WHERE key = 'privateKey'").get();
+    if (row) key = await jose.importPKCS8(row.value, 'ES256');
+  }
+  return new jose.SignJWT(payload)
+    .setProtectedHeader({ alg: 'ES256', typ: 'JWT' })
+    .setIssuedAt()
+    .sign(key);
+}
+
+export async function verifyJwt(token, pem) {
+  const key = await jose.importSPKI(pem, 'ES256');
+  const { payload } = await jose.jwtVerify(token, key);
+  return payload;
+}
