@@ -88,7 +88,9 @@ export async function init(name, address) {
   console.log(`Registered as ${bankId} (prefix: ${bankPrefix})`);
 
   await syncBanks();
-  setInterval(async () => {
+
+  // Send heartbeat immediately, then every 5 minutes
+  async function sendHeartbeat() {
     try {
       await fetch(`${CB_URL}/banks/${bankId}/heartbeat`, {
         method: 'POST',
@@ -96,8 +98,11 @@ export async function init(name, address) {
         body: JSON.stringify({ timestamp: new Date().toISOString() })
       });
       await syncBanks();
+      console.log('Heartbeat sent');
     } catch (e) { console.error('Heartbeat error:', e.message); }
-  }, 25 * 60 * 1000);
+  }
+  await sendHeartbeat();
+  setInterval(sendHeartbeat, 5 * 60 * 1000);
 
   return { bankId, bankPrefix };
 }
