@@ -43,9 +43,9 @@ app.post('/api/v1/users/:userId/accounts', authenticate, (req, res) => {
 
   const createdAt = new Date().toISOString();
   db.prepare('INSERT INTO accounts (account_number, owner_id, currency, balance, created_at) VALUES (?,?,?,?,?)')
-    .run(accountNumber, userId, currency, '0.00', createdAt);
+    .run(accountNumber, userId, currency, '10.00', createdAt);
 
-  res.status(201).json({ accountNumber, ownerId: userId, currency, balance: '0.00', createdAt });
+  res.status(201).json({ accountNumber, ownerId: userId, currency, balance: '10.00', createdAt });
 });
 
 app.get('/api/v1/accounts/:accountNumber', (req, res) => {
