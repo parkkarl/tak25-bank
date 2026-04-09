@@ -84,8 +84,8 @@ SQLite (`bank.db`), 4 tabelit:
 
 ### Keskpanga info
 
-- **Bank ID:** GFT001
-- **Prefiks:** GFT (kontonumbrid algavad GFT-ga)
+- **Bank ID:** TAK001
+- **Prefiks:** TAK (kontonumbrid algavad TAK-ga)
 - **Heartbeat:** iga 25 min automaatselt
 
 ### Deploy
@@ -143,7 +143,7 @@ Pärast muutmist: `ssh root@89.167.83.242 "systemctl daemon-reload && systemctl 
 curl -s http://89.167.83.242:3000/health
 
 # Keskpangas registreeritud:
-curl -s https://test.diarainfra.com/central-bank/api/v1/banks | jq '.banks[] | select(.bankId == "GFT001")'
+curl -s https://test.diarainfra.com/central-bank/api/v1/banks | jq '.banks[] | select(.bankId == "TAK001")'
 
 # Logid OK:
 ssh root@89.167.83.242 "journalctl -u tak25-bank --no-pager -n 5"
